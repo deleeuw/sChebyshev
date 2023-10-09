@@ -1,0 +1,151 @@
+---
+title: "Smacof Meets Chebyshev"
+author: 
+- Jan de Leeuw - University of California Los Angeles
+date: '`r paste("Started October 08 2023, Version of",format(Sys.Date(),"%B %d, %Y"))`'
+output:
+  bookdown::pdf_document2:
+    latex_engine: lualatex
+    includes:
+      in_header: preamble.tex
+    keep_tex: yes
+    toc: true
+    toc_depth: 4
+    number_sections: yes
+  bookdown::html_document2:
+    keep_md: yes
+    css: preamble.css
+    toc: true
+    toc_depth: 4
+    number_sections: yes
+graphics: yes
+mainfont: Times New Roman
+fontsize: 12pt
+bibliography: ["mypubs.bib","total.bib"]
+abstract: We present theory, algorithms, and R code for a version of the **smacof** method for multidimensional scaling that (1) allows for possibly different linear constraints on different dimensions and that (2) uses second derivatives to study and possibly accelerate convergence. Several examples are analyzed and discussed.   
+---
+```{r loadpackages, echo = FALSE}
+suppressPackageStartupMessages(library(smacof, quietly = TRUE))
+suppressPackageStartupMessages(library(microbenchmark, quietly = TRUE))
+suppressPackageStartupMessages(library(MASS, quietly = TRUE))
+```
+
+```{r load code, echo = FALSE}
+source("utils.R")
+source("basis.R")
+source("vSmacof.R")
+source("sSmacof.R")
+source("exampleRun.R")
+```
+
+**Note:** This is a working paper which will be expanded/updated frequently. All suggestions for improvement are welcome. The Rmd file, the pdf, all R files, a LaTeX version and so on are available at https://github.com/deleeuw/sChebyshev.
+
+# Notation {-}
+
+## Conventions {-}
+
+Since we only work in finite dimensional vector spaces, and since our emphasis is on computation, we adopt the following conventions.
+
+* A vector *is* a matrix with one column.
+* A row-vector *is* a matrix with one row.
+* Derivatives *are* matrices.
+
+## Notations {-}
+
+The length of vectors and the dimension of matrices will generally 
+be clear from the context.
+
+* $e_i\quad$ unit vector  (element $i$ is one, other elements zero).
+* $e\quad$ vector with all elements one.
+* $E\quad$ matrix with all elements one.
+* $0\quad$ real number zero, also vector or matrix with all elements $0$.
+* $I\quad$ identity matrix.
+* $J=I-\frac{ee'}{e'e}\quad$ centering matrix.
+* $A\otimes B\quad$ Kronecker product of matrices $A$ and $B$.
+* $X\oplus Y\quad$ direct sum of matrices $X$ and $Y$.
+* $X\times Y\quad$ elementwise (Hadamard) product of matrices $X$ and $Y$.
+* $\text{vec}(X)\quad$ matrix $X$ to vector (columns on top of each other).
+* $\text{vecr}(X)\quad$ elements below diagonal of matrix $X$ to vector (columns on top of each other).
+* $X'\quad$ transpose of matrix $X$.
+* $X^+\quad$ Moore-Penrose inverse of matrix $X$.
+* $X^{-T}\quad$ inverse of the transpose $X'$ (and transpose of the inverse).
+* $X\gtrsim Y\quad$ Loewner order of symmetric matrices ($X-Y$ is positive semi-definite).
+* $X\lesssim Y\quad$ Loewner order of symmetric matrices ($Y-X$ is positive semi-definite).
+* $:=\quad$ definition.
+* $X\times Y\quad$ Cartesian product of sets $X$ and $Y$.
+* $(x,y)\quad$ is an ordered pair, i.e. an element of $X\times Y$. 
+* $x_{is}$ or $\{X\}_{is}\quad$ element $(i,s)$ of matrix $X$.
+* $a_{\bullet s}\quad$ column $s$ of matrix $A$.
+* $a_{i\bullet\quad}$ row $i$ of matrix $A$.
+* $[A]_{is}\quad$ submatrix $(i,s)$ of block-matrix $A$.
+* $A^{[p]}\quad$ direct sum of $p$ copies of matrix $A$.
+* $a^{(k)}\quad$ the $k^{th}$ element of the sequence $\{a\}=a^{(1)},\cdots,a^{(k)},\cdots$.
+* $\mathbb{R}^n\quad$ space of all vectors of length $n$.
+* $\overline{\mathbb{R}}^n\quad$ space of all centered vectors of length $n$ (i.e. $x'e=0$).
+* $\mathbb{R}^{n\times p}\quad$ space of all $n\times p$ matrices.
+* $\overline{\mathbb{R}}^{n\times p}\quad$ space of all column-centered $n\times p$ matrices (i.e. with $X'e=0$).
+* $f:X\Rightarrow Y\quad$ function with arguments in $X$ and values in $Y$.
+* If $f:X\times Y\Rightarrow Z$ then $f(\bullet,y):X\Rightarrow Z$
+and $f(x,\bullet):Y\Rightarrow Z$.
+* $x'y\quad$ inner product in $\mathbb{R}^n$.
+* $\text{tr}\ X'Y\quad$ inner product in $\mathbb{R}^{n\times p}$.
+* $\|x\|=\sqrt{x'x}\quad$ Euclidean norm of $x\in\mathbb{R}^n$.
+* $\|X\|=\sqrt{\text{tr}\ X'X}\quad$ Euclidean norm of $X\in\mathbb{R}^{n\times p}$.
+* $\mathcal{D}f(x)\quad$ derivative of $f$ at $x$.
+* $\mathcal{D}^2f(x)\quad$ second derivative of $f$ at $x$.
+* $\mathcal{D}_sf(x)=\{\mathcal{D}f(x)\}_s\quad$ partial derivative with respect to $x_s$ at $x$.
+* $\mathcal{D}_{st}f(x)=\{\mathcal{D}^2f(x)\}_{st}\quad$ second partial with respect to $x_s$ and $x_t$ at $x$.
+
+
+## Matrix Basis
+
+An important special case of DCDD imposes the constraint
+\begin{equation}
+X=\sum_{v=1}^r\theta_vG_v,
+(\#eq:matbasis)
+ \end{equation}
+ where the $G_s$ are $n\times p$ matrices. To see that this is indeed a special case
+ of DCDD define $Y_s$ as the matrix collecting the $s^{th}$ columns of all $G_v$. Thus
+ there are $r$ of these $n\times r$ matrices $Y_s$. Now $\vec(X)=Y\theta$, with $Y$
+   the direct sum of the $Y_s$, as usual, and 
+ \begin{equation}
+ \theta=\left.\begin{bmatrix}\theta\\\vdots\\\theta\end{bmatrix}\right\}r\ \text{times}.
+(\#eq:thetamat)
+  \end{equation}
+  The distinguishing DCDD characteristic in using the *matrix basis* \@ref(eq:matbasis) is that all $r$ pieces of $\theta$ in \@ref(eq:thetamat) must be equal.
+  
+  Better in configuration space
+  
+  No $V=I$
+    
+    One important application of the matrix basis is finding the optimal step size in
+  iterative procedures, or, more generally, finding optimal weights in multistep
+  procedures. For the steepest descent method, for example, we choose $G_1=X$
+    and $G_2=\nabla\sigma(X)$. 
+  
+  $$
+    \{C_{ij}\}_{vw}=\text{tr}\ G_v'A_{ij}G_w
+$$
+Thus
+$$
+\{V_s\}_{vw}=\text{tr}\ G_v'V_0G_w
+  $$
+    $$
+    \{B_s(\theta)\}_{vw}=\text{tr}\ G_v'B_0(\theta)G_w
+$$
+$$\sigma(\theta):=\frac12\{1-2\theta'B(\theta)\theta+\theta'V\theta\}$$
+
+## Matrix Based
+
+$$
+  X^{(k+1)}=\theta_1 X^{(k)}+\theta_2\Gamma(X^{(k)})+\theta_3\Gamma^2(X^{(k)})+\cdots+\theta_r\Gamma^{r-1}(X^{(k)})
+  $$
+    Problem: near a fixed point $B$ and $V$ become almost singular (of rank one)
+  
+  Chebyshev: $$\min_\theta\max_s|\theta_1+\theta_2\lambda_s+\cdots+\theta_r\lambda_s^{r-1}|$$
+    
+    Sidi
+  
+  Generalizes relax. 
+  
+  
