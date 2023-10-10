@@ -22,7 +22,7 @@ graphics: yes
 mainfont: Times New Roman
 fontsize: 12pt
 bibliography: ["mypubs.bib","total.bib"]
-abstract: We present theory, algorithms, and R code for a version of the **smacof** method for multidimensional scaling that (1) allows for possibly different linear constraints on different dimensions and that (2) uses second derivatives to study and possibly accelerate convergence. Several examples are analyzed and discussed.   
+abstract:    
 ---
 ```{r loadpackages, echo = FALSE}
 suppressPackageStartupMessages(library(smacof, quietly = TRUE))
@@ -35,7 +35,7 @@ source("utils.R")
 source("basis.R")
 source("vSmacof.R")
 source("sSmacof.R")
-source("exampleRun.R")
+source("exampleRun2.R")
 ```
 
 **Note:** This is a working paper which will be expanded/updated frequently. All suggestions for improvement are welcome. The Rmd file, the pdf, all R files, a LaTeX version and so on are available at https://github.com/deleeuw/sChebyshev.
@@ -96,6 +96,17 @@ and $f(x,\bullet):Y\Rightarrow Z$.
 * $\mathcal{D}_sf(x)=\{\mathcal{D}f(x)\}_s\quad$ partial derivative with respect to $x_s$ at $x$.
 * $\mathcal{D}_{st}f(x)=\{\mathcal{D}^2f(x)\}_{st}\quad$ second partial with respect to $x_s$ and $x_t$ at $x$.
 
+# Introduction
+
+In this paper we study techniques to speed up the basic smacof iteration
+$$
+X^{(k+1)}=\Gamma(X^{(k)})
+$$
+with $\Gamma$ the Guttman transform, by using updates of the form
+$$
+X^{(k+1)}=\sum_{r=1}^s\alpha_r\Gamma^r(X^{(k)})
+$$
+with $\Gamma^0(X)=X$ and $\Gamma^r(X)=\Gamma(\Gamma^{r-1}(X))$
 
 ## Matrix Basis
 

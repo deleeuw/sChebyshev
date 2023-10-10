@@ -1,6 +1,6 @@
 source("utils.R")
 source("basis.R")
-source("exampleRun.R")
+source("exampleRun2.R")
 source("derivatives.R")
 
 library(MASS)
